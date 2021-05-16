@@ -26,11 +26,10 @@ object List {
     if (as.isEmpty) Nil
     else Cons(as.head, apply(as.tail: _*))
 
-  def tail[A](l: List[A]): List[A] =
-    l match {
-      case Nil => sys.error("tail of empty list")
-      case Cons(_, t) => t
-    }
+  def tail[A](l: List[A]): List[A] = l match {
+    case Nil => sys.error("tail of empty list")
+    case Cons(_, t) => t
+  }
 
   def setHead[A](l: List[A], h: A): List[A] = l match {
     case Nil => sys.error("setHead on empty list")
@@ -46,24 +45,21 @@ object List {
     }
 
   @tailrec
-  def dropWhile[A](l: List[A], f: A => Boolean): List[A] =
-    l match {
-      case Cons(h, t) if f(h) => dropWhile(t, f)
-      case _ => l
-    }
+  def dropWhile[A](l: List[A], f: A => Boolean): List[A] = l match {
+    case Cons(h, t) if f(h) => dropWhile(t, f)
+    case _ => l
+  }
 
-  def append[A](a1: List[A], a2: List[A]): List[A] =
-    a1 match {
-      case Nil => a2
-      case Cons(h, t) => Cons(h, append(t, a2))
-    }
+  def append[A](a1: List[A], a2: List[A]): List[A] = a1 match {
+    case Nil => a2
+    case Cons(h, t) => Cons(h, append(t, a2))
+  }
 
-  def init[A](l: List[A]): List[A] =
-    l match {
-      case Nil => sys.error("init of empty list")
-      case Cons(_, Nil) => Nil
-      case Cons(h, t) => Cons(h, init(t))
-    }
+  def init[A](l: List[A]): List[A] = l match {
+    case Nil => sys.error("init of empty list")
+    case Cons(_, Nil) => Nil
+    case Cons(h, t) => Cons(h, init(t))
+  }
 
   def init2[A](l: List[A]): List[A] = {
     import collection.mutable.ListBuffer
@@ -79,11 +75,10 @@ object List {
     go(l)
   }
 
-  def foldRight[A, B](as: List[A], z: B)(f: (A, B) => B): B =
-    as match {
-      case Nil => z
-      case Cons(x, xs) => f(x, foldRight(xs, z)(f))
-    }
+  def foldRight[A, B](as: List[A], z: B)(f: (A, B) => B): B = as match {
+    case Nil => z
+    case Cons(x, xs) => f(x, foldRight(xs, z)(f))
+  }
 
   def sum2(ns: List[Int]): Int =
     foldRight(ns, 0)(_ + _)
@@ -95,11 +90,10 @@ object List {
     foldRight(l, 0)((_, acc) => acc + 1)
 
   @tailrec
-  def foldLeft[A, B](as: List[A], z: B)(f: (B, A) => B): B =
-    as match {
-      case Nil => z
-      case Cons(h, t) => foldLeft(t, f(z, h))(f)
-    }
+  def foldLeft[A, B](as: List[A], z: B)(f: (B, A) => B): B = as match {
+    case Nil => z
+    case Cons(h, t) => foldLeft(t, f(z, h))(f)
+  }
 
   def sum3(l: List[Int]): Int =
     foldLeft(l, 0)(_ + _)
@@ -181,12 +175,11 @@ object List {
   def filterViaFlatMap[A](l: List[A])(f: A => Boolean): List[A] =
     flatMap(l)(a => if (f(a)) List(a) else Nil)
 
-  def addPairwise(as: List[Int], bs: List[Int]): List[Int] =
-    (as, bs) match {
-      case (Nil, _) => Nil
-      case (_, Nil) => Nil
-      case (Cons(h1, t1), Cons(h2, t2)) => Cons(h1 + h2, addPairwise(t1, t2))
-    }
+  def addPairwise(as: List[Int], bs: List[Int]): List[Int] = (as, bs) match {
+    case (Nil, _) => Nil
+    case (_, Nil) => Nil
+    case (Cons(h1, t1), Cons(h2, t2)) => Cons(h1 + h2, addPairwise(t1, t2))
+  }
 
   def zipWith[A, B, C](as: List[A], bs: List[B])(f: (A, B) => C): List[C] = (as, bs) match {
     case (Nil, _) => Nil
@@ -195,20 +188,18 @@ object List {
   }
 
   @tailrec
-  def startsWith[A](l: List[A], prefix: List[A]): Boolean =
-    (l, prefix) match {
-      case (_, Nil) => true
-      case (Cons(h1, t1), Cons(h2, t2)) if h1 == h2 => startsWith(t1, t2)
-      case _ => false
-    }
+  def startsWith[A](l: List[A], prefix: List[A]): Boolean = (l, prefix) match {
+    case (_, Nil) => true
+    case (Cons(h1, t1), Cons(h2, t2)) if h1 == h2 => startsWith(t1, t2)
+    case _ => false
+  }
 
   @tailrec
-  def hasSubsequence[A](l: List[A], sub: List[A]): Boolean =
-    l match {
-      case Nil => sub == Nil
-      case _ if startsWith(l, sub) => true
-      case Cons(_, t) => hasSubsequence(t, sub)
-    }
+  def hasSubsequence[A](l: List[A], sub: List[A]): Boolean = l match {
+    case Nil => sub == Nil
+    case _ if startsWith(l, sub) => true
+    case Cons(_, t) => hasSubsequence(t, sub)
+  }
 
   def main(args: Array[String]): Unit = {
     val x = List(1, 2, 3, 4, 5) match {
