@@ -22,7 +22,7 @@ sealed trait Option[+A] {
   def orElse[B >: A](ob: => Option[B]): Option[B] =
     this map (Some(_)) getOrElse ob
 
-  def orElse[B >: A](ob: => Option[B]): Option[B] = this match {
+  def orElse_1[B >: A](ob: => Option[B]): Option[B] = this match {
     case None => ob
     case _ => this
   }
