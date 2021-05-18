@@ -45,6 +45,10 @@ object Chapter3 {
     val js = new ArrayBuffer[Int]()
 
     for (element <- ds) {
+//      element match {
+//        case _ if element > 0 => hs += element
+//        case _ => js += element
+//      }
       if (element > 0) hs += element
       else js += element
     }
