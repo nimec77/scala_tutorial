@@ -1,5 +1,7 @@
 package alogorythms
 
+import scala.util.matching.Regex
+
 object Fibonacci {
 
   def fibClassic(n: Int): Long = {
