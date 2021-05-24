@@ -65,5 +65,13 @@ object Par {
       l map asyncF((a: A) => if (f(a)) List(a) else List())
     map(sequence(pars))(_.flatten)
   }
+
+  def equal[A](e: ExecutorService)(p1: Par[A], p2: Par[A]): Boolean =
+    p1(e).get == p2(e).get
+
+  def delay[A](fa: => Par[A]): Par[A] =
+    es => fa(es)
+
+
 }
 
