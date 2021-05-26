@@ -6,6 +6,9 @@ import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
 
 sealed trait Stream[+A] {
+  def flatMap[B](f: A => Stream[B]): Stream[B] =
+    foldRight(empty[B])((h, t) => f(h) append t)
+
   def headOption: Option[A] = this match {
     case Empty => None
     case Cons(h, _) => Some(h())
