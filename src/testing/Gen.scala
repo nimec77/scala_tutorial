@@ -2,6 +2,10 @@ package testing
 
 import state._
 import testing.Prop._
+import laziness._
+
+import scala.annotation.tailrec
+import scala.language.implicitConversions
 
 case class Prop(run: (MaxSize, TestCases, Rng) => Result) {
   def &&(p: Prop): Prop = Prop {
@@ -49,6 +53,43 @@ object Prop {
 
   case object Proved extends Result {
     override def isFalsified: Boolean = false
+  }
+
+  def randomStream[A](g: Gen[A])(rng: Rng): Stream[A] =
+    Stream.unfold(rng)(rng => Some(g.sample.run(rng)))
+
+  def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop {
+    (n, rng) =>
+      randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
+        case (a, i) => try {
+          if (f(a)) Passed else Falsified(a.toString, i)
+        } catch {
+          case e: Exception => Falsified(buildMsg(a, e), i)
+        }
+      }.find(_.isFalsified).getOrElse(Passed)
+  }
+
+  def buildMsg[A](s: A, e: Exception): String =
+    s"test case $s\n" +
+      s"generated an exception: ${e.getMessage} \n" +
+      s"stack trace:\n ${e.getStackTrace.mkString("\n")}"
+
+  def apply(f: (TestCases, Rng) => Result): Prop =
+    Prop { (_, n, rng) => f(n, rng) }
+
+  def forAll[A](g: SGen[A])(f: A => Boolean): Prop =
+    forAll(g(_))(f)
+
+  def forAll[A](g: Int => Gen[A])(f: A => Boolean): Prop = Prop {
+    (max, n, rng) =>
+      val casesPerSize = (n - 1) / max + 1
+      val props: Stream[Prop] =
+        Stream.from(0).take((n min max) + 1).map(i => forAll(g(i))(f))
+      val prop: Prop =
+        props.map(p => Prop { (max, n, rng) =>
+          p.run(max, casesPerSize, rng)
+        }).toList.reduce(_ && _)
+      prop.run(max, n, rng)
   }
 }
 
@@ -110,6 +151,9 @@ object Gen {
 
   def listOf1[A](g: Gen[A]): SGen[List[A]] =
     SGen(n => g.listOfN(n max 1))
+
+  implicit def uniszed[A](g: Gen[A]): SGen[A] = SGen(_ => g)
+
 }
 
 case class SGen[+A](g: Int => Gen[A]) {
