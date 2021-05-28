@@ -3,7 +3,11 @@ package testing
 import state._
 import testing.Prop._
 import laziness._
+import parallelism.Par
+import parallelism.Par.{Par, unit}
+import testing.Gen.{choose, weighted}
 
+import java.util.concurrent.{ExecutorService, Executors}
 import scala.annotation.tailrec
 import scala.language.implicitConversions
 
@@ -91,6 +95,43 @@ object Prop {
         }).toList.reduce(_ && _)
       prop.run(max, n, rng)
   }
+
+  def run(p: Prop, maxSize: MaxSize = 100, testCases: TestCases = 100,
+          rng: Rng = Rng.SimpleRng(System.currentTimeMillis)): Unit =
+    p.run(maxSize, testCases, rng) match {
+      case Falsified(msg, n) => println(s"! Falsified after $n passed tests:\n $msg")
+      case Passed => println(s"+ OK, passed $testCases tests.")
+      case Proved => println(s"+ OK, proved property.")
+    }
+
+  val Es: ExecutorService = Executors.newCachedThreadPool
+  val p1: Prop = Prop.forAll(Gen.unit(Par.unit(1)))(i => Par.map(i)(_ + 1)(Es).get == Par.unit(2)(Es).get)
+
+  def check(p: => Boolean): Prop = Prop { (_, _, _) => if (p) Passed else Falsified("()", 0) }
+
+  val p2: Prop = check {
+    val p = Par.map(Par.unit(1))(_ + 1)
+    val p2 = Par.unit(2)
+    p(Es).get == p2(Es).get
+  }
+
+  def equal[A](p: Par[A], p2: Par[A]): Par[Boolean] =
+    Par.map2(p, p2)(_ == _)
+
+  val p3: Prop = check {
+    equal(
+      Par.map(Par.unit(1))(_ + 1),
+      Par.unit(2)
+    )(Es).get
+  }
+
+//  val s = weighted(
+//    choose(1,4).map(Executors.newFixedThreadPool) -> .75,
+//    unit(Executors.newCachedThreadPool) -> .25) // `a -> b
+
+  //  def forAllPar[A](g: Gen[A])(f: A => Par[Boolean]): Prop =
+  //    forAll()
+
 }
 
 sealed trait Status {}
@@ -128,8 +169,8 @@ case class Gen[+A](sample: State[Rng, A]) {
 
   def **[B](g: Gen[B]): Gen[(A, B)] =
     (this map2 g) ((_, _))
-}
 
+}
 
 object Gen {
 
@@ -154,6 +195,70 @@ object Gen {
 
   implicit def uniszed[A](g: Gen[A]): SGen[A] = SGen(_ => g)
 
+  def even(start: Int, stopExclusive: Int): Gen[Int] = {
+    choose(start, if (stopExclusive % 2 == 0) stopExclusive - 1 else stopExclusive).
+      map(n => if (n % 2 != 0) n + 1 else n)
+  }
+
+  def odd(start: Int, stopExclusive: Int): Gen[Int] =
+    choose(start, if (stopExclusive % 2 != 0) stopExclusive - 1 else stopExclusive).
+      map(n => if (n % 2 == 0) n + 1 else n)
+
+  def sameParity(from: Int, to: Int): Gen[(Int, Int)] = for {
+    i <- choose(from, to)
+    j <- if (i % 2 == 0) even(from, to) else odd(from, to)
+  } yield (i, j)
+
+  def listOfN_1[A](n: Int, g: Gen[A]): Gen[List[A]] =
+    List.fill(n)(g).foldRight(unit(List[A]()))((a, b) => a.map2(b)(_ :: _))
+
+  def union[A](g1: Gen[A], g2: Gen[A]): Gen[A] =
+    boolean.flatMap(b => if (b) g1 else g2)
+
+  def weighted[A](g1: (Gen[A], Double), g2: (Gen[A], Double)): Gen[A] = {
+    val g1Threshold = g1._2.abs / (g1._2.abs + g2._2.abs)
+
+    Gen(State(Rng.double).flatMap(d => if (d < g1Threshold) g1._1.sample else g2._1.sample))
+  }
+
+  def stringN(n: Int): Gen[String] =
+    listOfN(n, choose(0, 127)).map(_.map(_.toChar).mkString)
+
+  val string: SGen[String] = SGen(stringN)
+
+  implicit def unsized[A](g: Gen[A]): SGen[A] = SGen(_ => g)
+
+  val smallInt: Gen[MaxSize] = Gen.choose(-10, 10)
+
+  val maxProp: Prop = forAll(listOf(smallInt)) { l =>
+    val max = l.max
+    !l.exists(_ > max)
+  }
+
+  val maxProp1: Prop = forAll(listOf1(smallInt)) { l =>
+    val max = l.max
+    !l.exists(_ > max)
+  }
+
+  val sortedProp: Prop = forAll(listOf(smallInt)) { l =>
+    val ls = l.sorted
+    l.isEmpty || ls.tail.isEmpty || !ls.zip(ls.tail).exists { case (a, b) => a > b }
+  }
+
+  object ** {
+    def unapply[A, B](p: (A, B)): Option[Nothing] = Some(p)
+  }
+
+  lazy val pint2: Gen[Par[Int]] = choose(-100, 100).listOfN(choose(0, 20)).map(l =>
+    l.foldLeft(Par.unit(0))((p, i) =>
+      Par.fork {
+        Par.map2(p, Par.unit(i))(_ + _)
+      }
+    )
+  )
+
+  def getStringIntFn(g: Gen[Int]): Gen[String => Int] =
+    g map (i => (_ => i))
 }
 
 case class SGen[+A](g: Int => Gen[A]) {
