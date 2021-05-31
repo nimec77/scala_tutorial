@@ -121,6 +121,7 @@ object Prop {
   val p3: Prop = check {
     equal(
       Par.map(Par.unit(1))(_ + 1),
+
       Par.unit(2)
     )(Es).get
   }
@@ -258,7 +259,7 @@ object Gen {
   )
 
   def getStringIntFn(g: Gen[Int]): Gen[String => Int] =
-    g map (i => (_ => i))
+    g map (i => _ => i)
 }
 
 case class SGen[+A](g: Int => Gen[A]) {
