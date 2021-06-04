@@ -1,5 +1,8 @@
 package monoids
 
+import parallelism.Nonblocking._
+
+
 trait Monoid[A] {
   def op(a1: A, a2: A): A
 
@@ -98,4 +101,29 @@ object Monoid {
       val (l, r) = as.splitAt(as.length / 2)
       m.op(foldMapV(l, m)(f), foldMapV(r, m)(f))
     }
+
+  def ordered(ints: IndexedSeq[Int]): Boolean = {
+    val mon: Monoid[Option[(MaxSize, MaxSize, Boolean)]] = new Monoid[Option[(Int, Int, Boolean)]] {
+      def op(o1: Option[(Int, Int, Boolean)], o2: Option[(Int, Int, Boolean)]): Option[(MaxSize, MaxSize, Boolean)] =
+        (o1, o2) match {
+          case (Some((x1, y1, p)), Some((x2, y2, q))) => Some((x1 min x2, y1 max y2, p && q && y1 <= x2))
+          case (x, None) => x
+          case (None, x) => x
+        }
+
+      val zero: Option[(MaxSize, MaxSize, Boolean)] = None
+    }
+    foldMapV(ints, mon)(i => Some((i, i, true))).forall(_._3)
+  }
+
+  def par[A](m: Monoid[A]): Monoid[Par[A]] = new Monoid[Par[A]] {
+    def zero: Par[A] = Par.unit(m.zero)
+
+    def op(a: Par[A], b: Par[A]): Par[A] = Par.unit(m.zero) //a.map2(b)(m.op)
+  }
+
+//  def parFoldMap[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
+//    Par.parMap(v)(f).flatMap { bs =>
+//      foldMapV(bs, par(m))(b => Par.lazyUnit(b))
+//    }
 }
