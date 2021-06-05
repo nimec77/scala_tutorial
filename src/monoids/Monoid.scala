@@ -122,8 +122,68 @@ object Monoid {
     def op(a: Par[A], b: Par[A]): Par[A] = Par.unit(m.zero) //a.map2(b)(m.op)
   }
 
-//  def parFoldMap[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
-//    Par.parMap(v)(f).flatMap { bs =>
-//      foldMapV(bs, par(m))(b => Par.lazyUnit(b))
-//    }
+  //  def parFoldMap[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
+  //    Par.parMap(v)(f).flatMap { bs =>
+  //      foldMapV(bs, par(m))(b => Par.lazyUnit(b))
+  //    }
+
+  sealed trait WC
+
+  case class Stub(chars: String) extends WC
+
+  case class Part(lStub: String, words: Int, rStub: String) extends WC
+
+  val wcMonoid: Monoid[WC] = new Monoid[WC] {
+    override def op(a1: WC, a2: WC): WC = (a1, a2) match {
+      case (Stub(c), Stub(d)) => Stub(c + d)
+      case (Stub(c), Part(l, w, r)) => Part(c + l, w, r)
+      case (Part(l, w, r), Stub(c)) => Part(l, w, r + c)
+      case (Part(l1, w1, r1), Part(l2, w2, r2)) => Part(l1, w1 + (if ((r2 + l2).isEmpty) 0 else 1) + w2, r2)
+    }
+
+    override def zero: WC = Stub("")
+  }
+
+  def count(s: String): Int = {
+    def wc(c: Char): WC =
+      if (c.isWhitespace)
+        Part("", 0, "")
+      else
+        Stub(c.toString)
+
+    def unstub(s: String) = s.length min 1
+
+    foldMapV(s.toIndexedSeq, wcMonoid)(wc) match {
+      case Stub(s) => unstub(s)
+      case Part(l, w, r) => unstub(l) + w + unstub(r)
+    }
+  }
+
+  def productMonoid[A, B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] =
+    new Monoid[(A, B)] {
+      override def op(a1: (A, B), a2: (A, B)): (A, B) = (A.op(a1._1, a2._1), B.op(a1._2, a2._2))
+
+      override def zero: (A, B) = (A.zero, B.zero)
+    }
+
+  def functionMonoid[A, B](B: Monoid[B]): Monoid[A => B] =
+    new Monoid[A => B] {
+      override def op(f: A => B, g: A => B): A => B = a => B.op(f(a), g(a))
+
+      override def zero: A => B = _ => B.zero
+    }
+
+  def mapMergeMonoid[K, V](V: Monoid[V]): Monoid[Map[K, V]] =
+    new Monoid[Map[K, V]] {
+      override def op(a1: Map[K, V], a2: Map[K, V]): Map[K, V] = (a1.keySet ++ a2.keySet).foldLeft(zero) {
+        (acc, k) => acc.updated(k, V.op(a1.getOrElse(k, V.zero), a2.getOrElse(k, V.zero)))
+      }
+
+      override def zero: Map[K, V] = Map[K, V]()
+    }
+
+  def beg[A](as: IndexedSeq[A]): Map[A, Int] =
+    foldMapV(as, mapMergeMonoid[A, Int](intAddition))((a: A) => Map(a -> 1))
 }
+
+
